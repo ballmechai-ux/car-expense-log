@@ -183,6 +183,24 @@
   body:not(.owner) .owner-only { display: none !important; }
   body.owner .login-only { display: none !important; }
   .viewer-note { text-align: center; font-size: 11px; color: #94a3b8; padding: 6px 0 0; }
+
+  #lockScreen { position: fixed; inset: 0; z-index: 9999; background: #0f172a; display: none;
+    flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+  .lock-icon { font-size: 44px; margin-bottom: 6px; }
+  .lock-title { font-size: 18px; font-weight: 700; color: #f1f5f9; }
+  .lock-sub { font-size: 12px; color: #94a3b8; margin: 4px 0 16px; min-height: 16px; }
+  .lock-sub.err { color: #f87171; }
+  .lock-dots { display: flex; gap: 12px; height: 18px; margin-bottom: 20px; }
+  .lock-dots i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #475569; }
+  .lock-dots i.on { background: #38bdf8; border-color: #38bdf8; }
+  .lock-pad { display: grid; grid-template-columns: repeat(3, 74px); gap: 12px; }
+  .lock-pad button { height: 60px; border-radius: 16px; border: 1px solid #334155; background: #1e293b;
+    color: #f1f5f9; font-size: 22px; cursor: pointer; }
+  .lock-pad button:active { background: #334155; }
+  .lock-pad .ok { background: #0369a1; border-color: #0284c7; }
+  .lock-owner { margin-top: 22px; background: none; border: none; color: #64748b; font-size: 12px; text-decoration: underline; cursor: pointer; }
+  .shake { animation: shake .35s; }
+  @keyframes shake { 20%,60% { transform: translateX(-8px); } 40%,80% { transform: translateX(8px); } }
 </style>
 </head>
 <body>
@@ -196,6 +214,7 @@
     </div>
     <div class="hdr-actions">
       <button class="btn-login login-only" onclick="doLogin()">🔐 เข้าสู่ระบบ</button>
+      <button class="btn-login owner-only" onclick="setPin()" title="ตั้ง PIN">🔑</button>
       <button class="btn-clear owner-only" onclick="openClear()">🗑️ ล้างข้อมูล</button>
       <button class="btn-login owner-only" onclick="doLogout()">ออก</button>
     </div>
@@ -270,6 +289,21 @@
   </div>
 </div>
 
+<!-- PIN Lock -->
+<div id="lockScreen">
+  <div class="lock-icon">🔒</div>
+  <div class="lock-title">เบิกการใช้รถยนต์</div>
+  <div class="lock-sub" id="lockMsg">ใส่รหัส PIN เพื่อเข้าดูข้อมูล</div>
+  <div class="lock-dots" id="lockDots"></div>
+  <div class="lock-pad">
+    <button onclick="pinKey('1')">1</button><button onclick="pinKey('2')">2</button><button onclick="pinKey('3')">3</button>
+    <button onclick="pinKey('4')">4</button><button onclick="pinKey('5')">5</button><button onclick="pinKey('6')">6</button>
+    <button onclick="pinKey('7')">7</button><button onclick="pinKey('8')">8</button><button onclick="pinKey('9')">9</button>
+    <button onclick="pinBack()">⌫</button><button onclick="pinKey('0')">0</button><button class="ok" onclick="pinSubmit()">✓</button>
+  </div>
+  <button class="lock-owner" onclick="doLogin()">เจ้าของ? เข้าสู่ระบบด้วย Google</button>
+</div>
+
 <!-- Clear Data Confirm -->
 <div class="confirm-overlay" id="clearModal" style="display:none" onclick="if(event.target===this)closeClear()">
   <div class="confirm-box">
@@ -314,18 +348,75 @@ let isOwner = false;
 
 function dbErr(e) { console.error(e); alert("บันทึกไม่สำเร็จ: " + (e.code === "permission-denied" ? "ไม่มีสิทธิ์แก้ไข (ต้องเข้าสู่ระบบด้วยอีเมลเจ้าของ)" : e.message)); }
 
-// ดึงข้อมูลแบบเรียลไทม์ — ทุกคนอ่านได้
-db.collection(COL).onSnapshot(snap => {
-  records = snap.docs.map(d => {
-    const r = { ...d.data(), id: d.id };
-    if (r.beginKm && !r.startKm) r.startKm = r.beginKm;
-    return r;
+// ดึงข้อมูลแบบเรียลไทม์ — เริ่มหลังผ่านการล็อก (ถ้ามี) เท่านั้น
+let unsub = null;
+function startListening() {
+  if (unsub) return;
+  unsub = db.collection(COL).onSnapshot(snap => {
+    records = snap.docs.map(d => {
+      const r = { ...d.data(), id: d.id };
+      if (r.beginKm && !r.startKm) r.startKm = r.beginKm;
+      return r;
+    });
+    render();
+  }, e => {
+    document.getElementById("content").innerHTML =
+      `<div class="empty"><div class="empty-icon">⚠️</div><div style="font-size:14px">โหลดข้อมูลไม่ได้<br><span style="font-size:11px;color:#94a3b8">${e.code || e.message}</span></div></div>`;
   });
-  render();
-}, e => {
-  document.getElementById("content").innerHTML =
-    `<div class="empty"><div class="empty-icon">⚠️</div><div style="font-size:14px">โหลดข้อมูลไม่ได้<br><span style="font-size:11px;color:#94a3b8">${e.code || e.message}</span></div></div>`;
-});
+}
+
+// ===== PIN lock =====
+// เก็บเฉพาะค่าแฮชของ PIN ไว้ที่ settings/pin (เจ้าของตั้งผ่านปุ่ม 🔑 ในแอป)
+const PIN_DOC = db.collection("settings").doc("pin");
+let pinHash = null, pinReady = false, authReady = false, entered = "", fails = 0, lockedUntil = 0;
+
+async function sha(pin) {
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("carlog:" + pin));
+  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
+}
+function drawDots() {
+  document.getElementById("lockDots").innerHTML = Array.from({ length: Math.max(4, entered.length) },
+    (_, i) => `<i class="${i < entered.length ? "on" : ""}"></i>`).join("");
+}
+function lockMsg(t, err) { const m = document.getElementById("lockMsg"); m.textContent = t; m.className = "lock-sub" + (err ? " err" : ""); }
+function showLock() { document.getElementById("lockScreen").style.display = "flex"; drawDots(); }
+function unlock() { document.getElementById("lockScreen").style.display = "none"; startListening(); }
+function checkGate() {
+  if (!pinReady || !authReady) return;
+  if (!pinHash || isOwner || localStorage.getItem("pin_ok") === pinHash) unlock(); else showLock();
+}
+function pinKey(d) { if (entered.length < 6) { entered += d; drawDots(); } }
+function pinBack() { entered = entered.slice(0, -1); drawDots(); }
+async function pinSubmit() {
+  if (Date.now() < lockedUntil) { lockMsg("ลองใหม่อีกครั้งในอีกสักครู่", true); return; }
+  if (entered.length < 4) { lockMsg("PIN ต้องมี 4–6 หลัก", true); return; }
+  const h = await sha(entered);
+  if (h === pinHash) { localStorage.setItem("pin_ok", h); entered = ""; unlock(); return; }
+  entered = ""; drawDots(); fails++;
+  const dots = document.getElementById("lockDots");
+  dots.classList.remove("shake"); void dots.offsetWidth; dots.classList.add("shake");
+  if (fails >= 5) { fails = 0; lockedUntil = Date.now() + 30000; lockMsg("ใส่ผิดหลายครั้ง รอ 30 วินาที", true); }
+  else lockMsg("PIN ไม่ถูกต้อง", true);
+}
+async function setPin() {
+  const v = prompt("ตั้งรหัส PIN 4–6 หลัก\n(เว้นว่างแล้วกดตกลง = ยกเลิกการล็อก)", "");
+  if (v === null) return;
+  try {
+    if (v === "") {
+      if (!confirm("ยกเลิกการล็อกด้วย PIN ใช่หรือไม่?")) return;
+      await PIN_DOC.delete(); pinHash = null; localStorage.removeItem("pin_ok");
+      alert("ยกเลิกการล็อกแล้ว"); return;
+    }
+    if (!/^\d{4,6}$/.test(v)) { alert("PIN ต้องเป็นตัวเลข 4–6 หลัก"); return; }
+    const h = await sha(v);
+    await PIN_DOC.set({ hash: h, updatedAt: Date.now() });
+    pinHash = h; localStorage.setItem("pin_ok", h);
+    alert("ตั้ง PIN เรียบร้อย คนอื่นต้องใส่ PIN นี้เพื่อเข้าดู");
+  } catch (e) { dbErr(e); }
+}
+PIN_DOC.get().then(d => { pinHash = d.exists ? (d.data().hash || null) : null; })
+  .catch(e => { console.warn("อ่านค่า PIN ไม่ได้", e); pinHash = null; })
+  .finally(() => { pinReady = true; checkGate(); });
 
 function doLogin() {
   auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e => {
@@ -337,6 +428,7 @@ function doLogout() { auth.signOut(); }
 auth.onAuthStateChanged(async user => {
   isOwner = !!(user && user.emailVerified && user.email.toLowerCase() === OWNER_EMAIL.toLowerCase());
   document.body.classList.toggle("owner", isOwner);
+  authReady = true; checkGate();
   if (user && !isOwner) { alert("บัญชี " + user.email + " ไม่มีสิทธิ์แก้ไข (ดูได้อย่างเดียว)"); auth.signOut(); return; }
   if (isOwner) offerImportLocal();
   render();
