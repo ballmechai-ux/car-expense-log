@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>เบิกการใช้รถยนต์</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Sarabun', sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    min-height: 100vh;
+    max-width: 430px;
+    margin: 0 auto;
+  }
+  select, input, button { font-family: 'Sarabun', sans-serif; }
+
+  .header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #0f2744 100%);
+    padding: 20px 16px 0;
+    border-bottom: 1px solid #1e40af33;
+  }
+  .header-title { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .header-title span { font-size: 28px; }
+  .title-main { font-size: 18px; font-weight: 700; color: #93c5fd; }
+  .title-sub { font-size: 11px; color: #64748b; }
+  .selectors { display: flex; gap: 8px; margin-bottom: 16px; }
+  .selectors select {
+    background: #0f172a; color: #93c5fd;
+    border: 1px solid #1e40af; border-radius: 10px;
+    padding: 8px 10px; font-size: 14px;
+  }
+  .sel-month { flex: 1; }
+  .sel-year { width: 95px; }
+  .tabs { display: flex; gap: 4px; }
+  .tab {
+    flex: 1; padding: 8px 0; border: none;
+    border-radius: 8px 8px 0 0; font-size: 13px;
+    cursor: pointer; transition: all 0.2s; background: transparent; color: #64748b;
+  }
+  .tab.active { background: #0f172a; color: #93c5fd; font-weight: 700; }
+
+  .content { padding: 16px 16px 100px; overflow-y: auto; }
+
+  .card {
+    background: linear-gradient(135deg, #1e293b, #162032);
+    border-radius: 14px; padding: 14px 16px; margin-bottom: 12px;
+    border: 1px solid #1e40af22; box-shadow: 0 2px 12px #00000040;
+  }
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+  .date-badge {
+    background: #1e40af; border-radius: 8px; padding: 4px 10px;
+    font-size: 12px; font-weight: 700; color: #bfdbfe;
+  }
+  .card-actions { display: flex; gap: 6px; }
+  .btn-edit {
+    background: #0f4c75; border: none; border-radius: 8px;
+    color: #93c5fd; padding: 4px 10px; font-size: 12px; cursor: pointer;
+  }
+  .btn-del {
+    background: #450a0a; border: none; border-radius: 8px;
+    color: #fca5a5; padding: 4px 10px; font-size: 12px; cursor: pointer;
+  }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .info-cell { background: #0f172a; border-radius: 10px; padding: 8px 10px; }
+  .info-label { font-size: 10px; color: #475569; margin-bottom: 2px; }
+  .info-value { font-size: 13px; font-weight: 600; }
+  .purpose-tag {
+    margin-top: 8px; background: #0f172a; border-radius: 8px;
+    padding: 6px 10px; font-size: 12px; color: #94a3b8; display: flex; align-items: center; gap: 6px;
+  }
+  .empty { text-align: center; padding: 60px 0; color: #334155; }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; }
+
+  .sum-card {
+    background: linear-gradient(135deg, #1e293b, #162032);
+    border-radius: 14px; padding: 14px 16px; margin-bottom: 10px;
+    border: 1px solid #1e40af22; display: flex; align-items: center; gap: 14px;
+  }
+  .sum-icon { font-size: 24px; }
+  .sum-label { font-size: 11px; color: #64748b; }
+  .sum-value { font-size: 18px; font-weight: 700; }
+  .trip-list { background: #1e293b; border-radius: 14px; padding: 16px; border: 1px solid #1e40af22; margin-top: 4px; }
+  .trip-header { font-size: 13px; color: #64748b; margin-bottom: 10px; font-weight: 600; }
+  .trip-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #1e40af11; font-size: 12px; }
+
+  .fab {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: linear-gradient(135deg, #2563eb, #1e40af);
+    color: white; border: none; border-radius: 50px;
+    padding: 14px 32px; font-size: 15px; font-weight: 700;
+    box-shadow: 0 4px 24px #2563eb66; cursor: pointer;
+    display: flex; align-items: center; gap: 8px; z-index: 10; white-space: nowrap;
+  }
+
+  .overlay {
+    position: fixed; inset: 0; background: #00000099;
+    display: flex; align-items: flex-end; z-index: 100;
+  }
+  .modal {
+    background: #0f172a; border-radius: 20px 20px 0 0;
+    padding: 24px 20px 40px; width: 100%; max-width: 430px;
+    margin: 0 auto; border: 1px solid #1e40af44;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(100%) } to { transform: translateY(0) } }
+  .modal-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .modal-title { font-size: 16px; font-weight: 700; color: #93c5fd; }
+  .btn-close {
+    background: #1e293b; border: none; border-radius: 8px;
+    color: #94a3b8; width: 32px; height: 32px; cursor: pointer; font-size: 16px;
+  }
+  .form-group { margin-bottom: 14px; }
+  .form-label { display: block; font-size: 12px; color: #64748b; margin-bottom: 6px; }
+  .form-input {
+    width: 100%; background: #1e293b; border: 1px solid #1e40af;
+    border-radius: 10px; padding: 10px 14px; color: #e2e8f0;
+    font-size: 14px; font-family: 'Sarabun', sans-serif; outline: none;
+  }
+  /* ไฮไลต์ช่องที่ถูก auto-fill */
+  .form-input.autofilled {
+    border-color: #34d399;
+    background: #0d2b1f;
+  }
+  .autofill-hint {
+    font-size: 10px; color: #34d399; margin-top: 4px;
+  }
+  .btn-save {
+    width: 100%; padding: 14px; margin-top: 8px;
+    background: linear-gradient(135deg, #2563eb, #1e40af);
+    color: white; border: none; border-radius: 12px;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    box-shadow: 0 4px 16px #2563eb44;
+  }
+
+  .confirm-overlay {
+    position: fixed; inset: 0; background: #00000099;
+    display: flex; align-items: center; justify-content: center; z-index: 200;
+  }
+  .confirm-box {
+    background: #1e293b; border-radius: 16px; padding: 24px 20px;
+    width: 280px; border: 1px solid #dc262633; text-align: center;
+  }
+  .confirm-icon { font-size: 36px; margin-bottom: 12px; }
+  .confirm-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .confirm-sub { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+  .confirm-btns { display: flex; gap: 10px; }
+  .btn-cancel {
+    flex: 1; padding: 10px; background: #0f172a;
+    border: 1px solid #1e40af; border-radius: 10px;
+    color: #93c5fd; cursor: pointer; font-size: 13px;
+  }
+  .btn-confirm-del {
+    flex: 1; padding: 10px; background: #dc2626; border: none;
+    border-radius: 10px; color: white; cursor: pointer;
+    font-size: 13px; font-weight: 700;
+  }
+
+  .btn-clear {
+    margin-left: auto; background: #450a0a; border: 1px solid #dc262655;
+    border-radius: 10px; color: #fca5a5; padding: 6px 12px;
+    font-size: 12px; cursor: pointer; white-space: nowrap;
+  }
+  .clear-btns { display: flex; flex-direction: column; gap: 8px; }
+  .clear-btns button { width: 100%; padding: 11px; border-radius: 10px; font-size: 13px; cursor: pointer; border: none; }
+  .btn-clear-month { background: #7f1d1d; color: #fecaca; font-weight: 700; }
+  .btn-clear-all { background: #dc2626; color: #fff; font-weight: 700; }
+  .btn-clear-month:disabled, .btn-clear-all:disabled { opacity: .35; cursor: not-allowed; }
+
+  .hdr-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .hdr-actions .btn-clear { margin-left: 0; }
+  .btn-login { background: #1e293b; border: 1px solid #334155; border-radius: 10px; color: #e2e8f0; padding: 6px 12px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  body:not(.owner) .owner-only { display: none !important; }
+  body.owner .login-only { display: none !important; }
+  .viewer-note { text-align: center; font-size: 11px; color: #94a3b8; padding: 6px 0 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">
+    <span>🚗</span>
+    <div>
+      <div class="title-main">ระบบเบิกการใช้รถยนต์</div>
+      <div class="title-sub">Vehicle Expense Log</div>
+    </div>
+    <div class="hdr-actions">
+      <button class="btn-login login-only" onclick="doLogin()">🔐 เข้าสู่ระบบ</button>
+      <button class="btn-clear owner-only" onclick="openClear()">🗑️ ล้างข้อมูล</button>
+      <button class="btn-login owner-only" onclick="doLogout()">ออก</button>
+    </div>
+  </div>
+  <div class="selectors">
+    <select class="sel-month" id="selMonth"></select>
+    <select class="sel-year" id="selYear"></select>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="setView('list')" id="tabList">📋 รายการ</button>
+    <button class="tab" onclick="setView('summary')" id="tabSummary">📊 สรุป</button>
+  </div>
+</div>
+
+<div class="content" id="content"></div>
+
+<button class="fab owner-only" onclick="openAdd()"><span style="font-size:18px">＋</span> เพิ่มรายการ</button>
+
+<!-- Form Modal -->
+<div class="overlay" id="formModal" style="display:none" onclick="handleOverlayClick(event,'formModal')">
+  <div class="modal">
+    <div class="modal-top">
+      <div class="modal-title" id="modalTitle">➕ เพิ่มรายการใหม่</div>
+      <button class="btn-close" onclick="closeForm()">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">📅 วันที่</label>
+      <input class="form-input" type="date" id="fDate">
+    </div>
+    <div class="form-group">
+      <label class="form-label">⛽ เติมน้ำมัน (ลิตร)</label>
+      <input class="form-input" type="number" min="0" step="0.01" placeholder="เช่น 40.5" id="fFuel">
+    </div>
+    <div class="form-group">
+      <label class="form-label">🚦 ไมล์เริ่มงาน (กม.)</label>
+      <input class="form-input" type="number" min="0" placeholder="เช่น 120300" id="fStartKm">
+      <div class="autofill-hint" id="startKmHint" style="display:none">✦ ดึงจากไมล์สิ้นสุดรายการล่าสุด</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">🏁 ไมล์สิ้นสุดงาน (กม.)</label>
+      <input class="form-input" type="number" min="0" placeholder="เช่น 120500" id="fKm">
+    </div>
+    <div class="form-group">
+      <label class="form-label">🏢 จุดหมายปลายทาง</label>
+      <input class="form-input" type="text" placeholder="เช่น สำนักงานเขต, โรงพยาบาล..." id="fDest">
+    </div>
+    <div class="form-group">
+      <label class="form-label">📝 วัตถุประสงค์</label>
+      <select class="form-input" id="fPurpose">
+        <option value="">-- เลือกวัตถุประสงค์ --</option>
+        <option>ราชการ</option>
+        <option>ประชุม</option>
+        <option>รับ-ส่งเอกสาร</option>
+        <option>ตรวจพื้นที่</option>
+        <option>อื่นๆ</option>
+      </select>
+    </div>
+    <button class="btn-save" onclick="saveRecord()" id="btnSave">✅ บันทึกรายการ</button>
+  </div>
+</div>
+
+<!-- Delete Confirm -->
+<div class="confirm-overlay" id="confirmModal" style="display:none">
+  <div class="confirm-box">
+    <div class="confirm-icon">🗑️</div>
+    <div class="confirm-title">ยืนยันการลบ</div>
+    <div class="confirm-sub">รายการนี้จะถูกลบถาวร</div>
+    <div class="confirm-btns">
+      <button class="btn-cancel" onclick="closeConfirm()">ยกเลิก</button>
+      <button class="btn-confirm-del" onclick="confirmDelete()">ลบเลย</button>
+    </div>
+  </div>
+</div>
+
+<!-- Clear Data Confirm -->
+<div class="confirm-overlay" id="clearModal" style="display:none" onclick="if(event.target===this)closeClear()">
+  <div class="confirm-box">
+    <div class="confirm-icon">⚠️</div>
+    <div class="confirm-title">ล้างข้อมูล</div>
+    <div class="confirm-sub">ข้อมูลที่ลบแล้วจะกู้คืนไม่ได้</div>
+    <div class="clear-btns">
+      <button class="btn-clear-month" id="btnClearMonth" onclick="clearMonth()"></button>
+      <button class="btn-clear-all" id="btnClearAll" onclick="clearAll()"></button>
+      <button class="btn-cancel" onclick="closeClear()">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+const MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+const COLORS = { fuel: "#fde68a", startKm: "#34d399", km: "#86efac", dist: "#c4b5fd", dest: "#7dd3fc" };
+
+// ===== Firebase =====
+// 1) วางค่า firebaseConfig จาก Firebase Console (Project settings → Your apps → Web app)
+const firebaseConfig = {
+  apiKey: "AIzaSyB3oWjYOZhrYwIvZ30fOrs3DLhIkSu1p6M",
+  authDomain: "car-expense-log-3f98a.firebaseapp.com",
+  projectId: "car-expense-log-3f98a",
+  storageBucket: "car-expense-log-3f98a.firebasestorage.app",
+  messagingSenderId: "225897266213",
+  appId: "1:225897266213:web:327da36bde6d2aba6153cc"
+};
+// 2) อีเมล Google ของเจ้าของ (คนเดียวที่แก้/ลบได้) — ต้องตรงกับที่ใส่ใน Firestore Rules
+const OWNER_EMAIL = "ballmechai@gmail.com";
+const COL = "carRecords";
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+let records = [];
+let isOwner = false;
+
+function dbErr(e) { console.error(e); alert("บันทึกไม่สำเร็จ: " + (e.code === "permission-denied" ? "ไม่มีสิทธิ์แก้ไข (ต้องเข้าสู่ระบบด้วยอีเมลเจ้าของ)" : e.message)); }
+
+// ดึงข้อมูลแบบเรียลไทม์ — ทุกคนอ่านได้
+db.collection(COL).onSnapshot(snap => {
+  records = snap.docs.map(d => {
+    const r = { ...d.data(), id: d.id };
+    if (r.beginKm && !r.startKm) r.startKm = r.beginKm;
+    return r;
+  });
+  render();
+}, e => {
+  document.getElementById("content").innerHTML =
+    `<div class="empty"><div class="empty-icon">⚠️</div><div style="font-size:14px">โหลดข้อมูลไม่ได้<br><span style="font-size:11px;color:#94a3b8">${e.code || e.message}</span></div></div>`;
+});
+
+function doLogin() {
+  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e => {
+    if (e.code !== "auth/popup-closed-by-user") alert("เข้าสู่ระบบไม่สำเร็จ: " + e.message);
+  });
+}
+function doLogout() { auth.signOut(); }
+
+auth.onAuthStateChanged(async user => {
+  isOwner = !!(user && user.emailVerified && user.email.toLowerCase() === OWNER_EMAIL.toLowerCase());
+  document.body.classList.toggle("owner", isOwner);
+  if (user && !isOwner) { alert("บัญชี " + user.email + " ไม่มีสิทธิ์แก้ไข (ดูได้อย่างเดียว)"); auth.signOut(); return; }
+  if (isOwner) offerImportLocal();
+  render();
+});
+
+// นำเข้าข้อมูลเดิมที่เก็บใน localStorage ของเครื่องนี้ (ครั้งเดียว)
+async function offerImportLocal() {
+  let local = [];
+  try { local = JSON.parse(localStorage.getItem("car_records") || "[]"); } catch (e) {}
+  if (!local.length) return;
+  if (!confirm(`พบข้อมูลเดิมในเครื่องนี้ ${local.length} รายการ\nนำเข้าไปเก็บบนฐานข้อมูลออนไลน์ไหม?`)) return;
+  try {
+    for (let i = 0; i < local.length; i += 400) {
+      const batch = db.batch();
+      local.slice(i, i + 400).forEach(r => {
+        const id = r.id || (Math.random().toString(36).slice(2) + Date.now());
+        batch.set(db.collection(COL).doc(id), { ...r, id });
+      });
+      await batch.commit();
+    }
+    localStorage.removeItem("car_records");
+    alert("นำเข้าข้อมูลเรียบร้อย");
+  } catch (e) { dbErr(e); }
+}
+
+async function deleteDocs(ids) {
+  ids = [...ids];
+  for (let i = 0; i < ids.length; i += 400) {
+    const batch = db.batch();
+    ids.slice(i, i + 400).forEach(id => batch.delete(db.collection(COL).doc(id)));
+    await batch.commit();
+  }
+}
+
+let currentView = "list";
+let editId = null;
+let deleteId = null;
+
+const now = new Date();
+let selMonth = now.getMonth();
+let selYear = now.getFullYear();
+
+const selMonthEl = document.getElementById("selMonth");
+const selYearEl = document.getElementById("selYear");
+
+MONTHS.forEach((m, i) => {
+  const o = document.createElement("option");
+  o.value = i; o.textContent = m;
+  if (i === selMonth) o.selected = true;
+  selMonthEl.appendChild(o);
+});
+
+for (let y = selYear - 2; y <= selYear + 2; y++) {
+  const o = document.createElement("option");
+  o.value = y; o.textContent = y + 543;
+  if (y === selYear) o.selected = true;
+  selYearEl.appendChild(o);
+}
+
+selMonthEl.addEventListener("change", () => { selMonth = +selMonthEl.value; render(); });
+selYearEl.addEventListener("change", () => { selYear = +selYearEl.value; render(); });
+
+
+function getLastEndKm() {
+  // หา endKm ล่าสุดจากทุก record เรียงตามวันที่
+  const sorted = [...records]
+    .filter(r => r.endKm)
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+  return sorted.length ? sorted[0].endKm : null;
+}
+
+function getFiltered() {
+  return records
+    .filter(r => { const d = new Date(r.date); return d.getMonth() === selMonth && d.getFullYear() === selYear; })
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+}
+
+function setView(v) {
+  currentView = v;
+  document.getElementById("tabList").className = "tab" + (v === "list" ? " active" : "");
+  document.getElementById("tabSummary").className = "tab" + (v === "summary" ? " active" : "");
+  render();
+}
+
+function render() {
+  const filtered = getFiltered();
+  const content = document.getElementById("content");
+  if (currentView === "list") renderList(filtered, content);
+  else renderSummary(filtered, content);
+}
+
+function renderList(filtered, container) {
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="empty"><div class="empty-icon">🔭</div><div style="font-size:14px">ยังไม่มีรายการในเดือนนี้</div></div>`;
+    return;
+  }
+  container.innerHTML = filtered.map(r => {
+    const d = new Date(r.date);
+    const startKm = parseFloat(r.startKm);
+    const currKm = parseFloat(r.endKm);
+    const dist = (startKm && currKm) ? currKm - startKm : null;
+    const dateStr = `${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)} ${d.getFullYear()+543}`;
+    return `
+    <div class="card">
+      <div class="card-top">
+        <div class="date-badge">${dateStr}</div>
+        <div class="card-actions">
+          <button class="btn-edit owner-only" onclick="openEdit('${r.id}')">แก้ไข</button>
+          <button class="btn-del owner-only" onclick="askDelete('${r.id}')">ลบ</button>
+        </div>
+      </div>
+      <div class="info-grid">
+        <div class="info-cell">
+          <div class="info-label">⛽ เติมน้ำมัน</div>
+          <div class="info-value" style="color:${COLORS.fuel}">${r.fuelLiters ? r.fuelLiters + " ลิตร" : "-"}</div>
+        </div>
+        <div class="info-cell">
+          <div class="info-label">🚦 ไมล์เริ่มงาน</div>
+          <div class="info-value" style="color:${COLORS.startKm}">${r.startKm ? Number(r.startKm).toLocaleString() + " กม." : "-"}</div>
+        </div>
+        <div class="info-cell">
+          <div class="info-label">🏁 ไมล์สิ้นสุดงาน</div>
+          <div class="info-value" style="color:${COLORS.km}">${r.endKm ? Number(r.endKm).toLocaleString() + " กม." : "-"}</div>
+        </div>
+        ${dist !== null ? `<div class="info-cell">
+          <div class="info-label">🛣️ ระยะทาง</div>
+          <div class="info-value" style="color:${COLORS.dist}">${dist.toLocaleString()} กม.</div>
+        </div>` : ""}
+        <div class="info-cell">
+          <div class="info-label">🏢 จุดหมาย</div>
+          <div class="info-value" style="color:${COLORS.dest}">${r.destination || "-"}</div>
+        </div>
+      </div>
+      ${r.purpose ? `<div class="purpose-tag"><span>📝</span><span>${r.purpose}</span></div>` : ""}
+    </div>`;
+  }).join("");
+}
+
+function renderSummary(filtered, container) {
+  const totalFuel = filtered.reduce((s, r) => s + (parseFloat(r.fuelLiters) || 0), 0);
+  const totalDist = filtered.reduce((s, r) => {
+    const sk = parseFloat(r.startKm), ek = parseFloat(r.endKm);
+    return s + (sk && ek ? ek - sk : 0);
+  }, 0);
+  const allEnd = filtered.map(r => parseFloat(r.endKm)).filter(Boolean);
+  const maxKm = allEnd.length ? Math.max(...allEnd) : 0;
+  const allStart = filtered.map(r => parseFloat(r.startKm)).filter(Boolean);
+  const minKm = allStart.length ? Math.min(...allStart) : 0;
+
+  const tripRows = filtered.map(r => {
+    const d = new Date(r.date);
+    return `<div class="trip-row">
+      <span style="color:#94a3b8">${d.getDate()}/${selMonth+1} — ${r.destination || "ไม่ระบุ"}</span>
+      <span style="color:#7dd3fc">${r.endKm ? Number(r.endKm).toLocaleString() + " กม." : "-"}</span>
+    </div>`;
+  }).join("");
+
+  container.innerHTML = `
+    ${sumCard("📅","เดือน",`${MONTHS[selMonth]} ${selYear+543}`,"#93c5fd")}
+    ${sumCard("📋","จำนวนรายการ",`${filtered.length} รายการ`,"#86efac")}
+    ${sumCard("⛽","น้ำมันรวม",`${totalFuel.toFixed(2)} ลิตร`,"#fde68a")}
+    ${sumCard("🚦","ไมล์เริ่มงาน (ต่ำสุด)",minKm ? `${minKm.toLocaleString()} กม.` : "-","#34d399")}
+    ${sumCard("🏁","ไมล์สิ้นสุด (สูงสุด)",maxKm ? `${maxKm.toLocaleString()} กม.` : "-","#86efac")}
+    ${sumCard("🛣️","ระยะทางรวมทั้งเดือน",totalDist ? `${totalDist.toLocaleString()} กม.` : "-","#f9a8d4")}
+    ${filtered.length ? `<div class="trip-list">
+      <div class="trip-header">📊 สรุปการเดินทาง</div>
+      ${tripRows}
+    </div>` : ""}
+  `;
+}
+
+function sumCard(icon, label, value, color) {
+  return `<div class="sum-card">
+    <span class="sum-icon">${icon}</span>
+    <div>
+      <div class="sum-label">${label}</div>
+      <div class="sum-value" style="color:${color}">${value}</div>
+    </div>
+  </div>`;
+}
+
+function openAdd() {
+  editId = null;
+  document.getElementById("modalTitle").textContent = "➕ เพิ่มรายการใหม่";
+  document.getElementById("btnSave").textContent = "✅ บันทึกรายการ";
+
+  const d = new Date(selYear, selMonth, 1);
+  document.getElementById("fDate").value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`;
+  document.getElementById("fFuel").value = "";
+  document.getElementById("fKm").value = "";
+  document.getElementById("fDest").value = "";
+  document.getElementById("fPurpose").value = "";
+
+  // auto-fill ไมล์เริ่มงาน จาก endKm ล่าสุด
+  const lastKm = getLastEndKm();
+  const startKmInput = document.getElementById("fStartKm");
+  const hint = document.getElementById("startKmHint");
+  if (lastKm) {
+    startKmInput.value = lastKm;
+    startKmInput.classList.add("autofilled");
+    hint.style.display = "block";
+  } else {
+    startKmInput.value = "";
+    startKmInput.classList.remove("autofilled");
+    hint.style.display = "none";
+  }
+
+  document.getElementById("formModal").style.display = "flex";
+}
+
+function openEdit(id) {
+  const r = records.find(x => x.id === id);
+  if (!r) return;
+  editId = id;
+  document.getElementById("modalTitle").textContent = "✏️ แก้ไขรายการ";
+  document.getElementById("btnSave").textContent = "💾 บันทึกการแก้ไข";
+  document.getElementById("fDate").value = r.date;
+  document.getElementById("fFuel").value = r.fuelLiters || "";
+  document.getElementById("fStartKm").value = r.startKm || "";
+  document.getElementById("fKm").value = r.endKm || "";
+  document.getElementById("fDest").value = r.destination || "";
+  document.getElementById("fPurpose").value = r.purpose || "";
+
+  // แก้ไขไม่ต้อง auto-fill
+  document.getElementById("fStartKm").classList.remove("autofilled");
+  document.getElementById("startKmHint").style.display = "none";
+
+  document.getElementById("formModal").style.display = "flex";
+}
+
+function closeForm() { document.getElementById("formModal").style.display = "none"; }
+
+function handleOverlayClick(e, id) {
+  if (e.target === document.getElementById(id)) closeForm();
+}
+
+function saveRecord() {
+  const date = document.getElementById("fDate").value;
+  if (!date) return alert("กรุณาเลือกวันที่");
+  const rec = {
+    date,
+    fuelLiters: document.getElementById("fFuel").value,
+    startKm: document.getElementById("fStartKm").value,
+    endKm: document.getElementById("fKm").value,
+    destination: document.getElementById("fDest").value,
+    purpose: document.getElementById("fPurpose").value,
+  };
+  const id = editId || (Math.random().toString(36).slice(2) + Date.now());
+  rec.id = id;
+  db.collection(COL).doc(id).set(rec, { merge: true }).catch(dbErr);
+  closeForm();
+}
+
+function askDelete(id) {
+  deleteId = id;
+  document.getElementById("confirmModal").style.display = "flex";
+}
+function closeConfirm() { document.getElementById("confirmModal").style.display = "none"; deleteId = null; }
+function confirmDelete() {
+  deleteDocs([deleteId]).catch(dbErr);
+  closeConfirm();
+}
+
+function openClear() {
+  const m = getFiltered().length;
+  const a = records.length;
+  const bm = document.getElementById("btnClearMonth");
+  const ba = document.getElementById("btnClearAll");
+  bm.textContent = `ลบเฉพาะเดือน ${MONTHS[selMonth]} ${selYear+543} (${m} รายการ)`;
+  ba.textContent = `ลบข้อมูลทั้งหมด (${a} รายการ)`;
+  bm.disabled = m === 0;
+  ba.disabled = a === 0;
+  document.getElementById("clearModal").style.display = "flex";
+}
+function closeClear() { document.getElementById("clearModal").style.display = "none"; }
+function clearMonth() {
+  const ids = new Set(getFiltered().map(r => r.id));
+  if (!ids.size) return;
+  if (!confirm(`ลบ ${ids.size} รายการของเดือนนี้ ใช่หรือไม่?`)) return;
+  deleteDocs(ids).catch(dbErr);
+  closeClear();
+}
+function clearAll() {
+  if (!records.length) return;
+  if (!confirm(`ลบข้อมูลทั้งหมด ${records.length} รายการ ใช่หรือไม่?\nการกระทำนี้ย้อนกลับไม่ได้`)) return;
+  deleteDocs(records.map(r => r.id)).catch(dbErr);
+  closeClear();
+}
+
+</script>
+</body>
+</html>
