@@ -567,11 +567,11 @@ function renderList(filtered, container) {
           <div class="info-label">🛣️ ระยะทาง</div>
           <div class="info-value" style="color:${COLORS.dist}">${dist.toLocaleString()} กม.</div>
         </div>` : ""}
-        ${r.homeKm ? `<div class="info-cell">
+        <div class="info-cell">
           <div class="info-label">🏠 กลับถึงบ้าน</div>
-          <div class="info-value" style="color:#fdba74">${Number(r.homeKm).toLocaleString()} กม.</div>
+          <div class="info-value" style="color:#fdba74">${r.homeKm ? Number(r.homeKm).toLocaleString() + " กม." : "-"}</div>
           ${parseFloat(r.endKm) && parseFloat(r.homeKm) >= parseFloat(r.endKm) ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px">ระยะกลับ ${(parseFloat(r.homeKm) - parseFloat(r.endKm)).toLocaleString()} กม.</div>` : ""}
-        </div>` : ""}
+        </div>
         <div class="info-cell">
           <div class="info-label">🏢 จุดหมาย</div>
           <div class="info-value" style="color:${COLORS.dest}">${r.destination || "-"}</div>
