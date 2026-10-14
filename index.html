@@ -201,6 +201,14 @@
   .lock-owner { margin-top: 22px; background: none; border: none; color: #64748b; font-size: 12px; text-decoration: underline; cursor: pointer; }
   .shake { animation: shake .35s; }
   @keyframes shake { 20%,60% { transform: translateX(-8px); } 40%,80% { transform: translateX(8px); } }
+
+  .chk-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chk-chip { position: relative; }
+  .chk-chip input { position: absolute; opacity: 0; pointer-events: none; }
+  .chk-chip span { display: inline-block; padding: 9px 15px; border-radius: 999px; border: 1px solid #334155;
+    background: #0f172a; color: #cbd5e1; font-size: 13px; cursor: pointer; user-select: none; }
+  .chk-chip input:checked + span { background: #0369a1; border-color: #38bdf8; color: #fff; font-weight: 700; }
+  .chk-chip input:checked + span::before { content: "✓ "; }
 </style>
 </head>
 <body>
@@ -267,7 +275,16 @@
       <div class="autofill-hint" id="homeKmHint" style="display:none"></div>
     </div>
     <div class="form-group">
-      <label class="form-label">🏢 จุดหมายปลายทาง</label>
+      <label class="form-label">📍 จุดหมายปลายทาง (ติ๊กเลือกได้หลายข้อ)</label>
+      <div class="chk-wrap" id="fDestTags">
+        <label class="chk-chip"><input type="checkbox" value="ไปรษณีย์"><span>ไปรษณีย์</span></label>
+        <label class="chk-chip"><input type="checkbox" value="ธนาคาร"><span>ธนาคาร</span></label>
+        <label class="chk-chip"><input type="checkbox" value="ท้องที่"><span>ท้องที่</span></label>
+        <label class="chk-chip"><input type="checkbox" value="เข้าจังหวัด"><span>เข้าจังหวัด</span></label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">🏢 จุดหมายอื่นๆ (พิมพ์เพิ่มได้)</label>
       <input class="form-input" type="text" placeholder="เช่น สำนักงานเขต, โรงพยาบาล..." id="fDest">
     </div>
     <div class="form-group">
@@ -529,6 +546,19 @@ function render() {
   else renderSummary(filtered, content);
 }
 
+const DEST_OPTIONS = ["ไปรษณีย์", "ธนาคาร", "ท้องที่", "เข้าจังหวัด"];
+function destList(r) { return [...(Array.isArray(r.destTags) ? r.destTags : []), r.destination].filter(Boolean); }
+function destLabel(r) { return destList(r).join(", "); }
+// ระยะทางของเที่ยว = ไมล์กลับถึงบ้าน − ไมล์เริ่มงาน (ถ้ายังไม่กรอกไมล์กลับบ้าน ใช้ไมล์สิ้นสุดงานแทน)
+function tripCalc(r) {
+  const sk = parseFloat(r.startKm), ek = parseFloat(r.endKm), hk = parseFloat(r.homeKm);
+  const go = sk && ek && ek >= sk ? ek - sk : null;
+  const back = ek && hk && hk >= ek ? hk - ek : null;
+  const toHome = !!(sk && hk && hk >= sk);
+  const total = toHome ? hk - sk : go;
+  return { go, back, total, toHome };
+}
+
 function renderList(filtered, container) {
   if (filtered.length === 0) {
     container.innerHTML = `<div class="empty"><div class="empty-icon">🔭</div><div style="font-size:14px">ยังไม่มีรายการในเดือนนี้</div></div>`;
@@ -536,10 +566,10 @@ function renderList(filtered, container) {
   }
   container.innerHTML = filtered.map(r => {
     const d = new Date(r.date);
-    const startKm = parseFloat(r.startKm);
-    const currKm = parseFloat(r.endKm);
-    const dist = (startKm && currKm) ? currKm - startKm : null;
+    const c = tripCalc(r);
     const dateStr = `${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)} ${d.getFullYear()+543}`;
+    const sub = (c.go !== null && c.back !== null) ? `ไป ${c.go.toLocaleString()} • กลับ ${c.back.toLocaleString()}`
+              : (c.total !== null && !c.toHome ? "ยังไม่ได้กรอกไมล์กลับบ้าน" : "");
     return `
     <div class="card">
       <div class="card-top">
@@ -563,18 +593,18 @@ function renderList(filtered, container) {
           <div class="info-label">🏁 ไมล์สิ้นสุดงาน</div>
           <div class="info-value" style="color:${COLORS.km}">${r.endKm ? Number(r.endKm).toLocaleString() + " กม." : "-"}</div>
         </div>
-        ${dist !== null ? `<div class="info-cell">
-          <div class="info-label">🛣️ ระยะทาง</div>
-          <div class="info-value" style="color:${COLORS.dist}">${dist.toLocaleString()} กม.</div>
-        </div>` : ""}
         <div class="info-cell">
           <div class="info-label">🏠 กลับถึงบ้าน</div>
           <div class="info-value" style="color:#fdba74">${r.homeKm ? Number(r.homeKm).toLocaleString() + " กม." : "-"}</div>
-          ${parseFloat(r.endKm) && parseFloat(r.homeKm) >= parseFloat(r.endKm) ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px">ระยะกลับ ${(parseFloat(r.homeKm) - parseFloat(r.endKm)).toLocaleString()} กม.</div>` : ""}
         </div>
-        <div class="info-cell">
+        ${c.total !== null ? `<div class="info-cell" style="grid-column:1/-1">
+          <div class="info-label">🛣️ ระยะทางรวม${c.toHome ? " (เริ่มงาน → กลับถึงบ้าน)" : ""}</div>
+          <div class="info-value" style="color:${COLORS.dist}">${c.total.toLocaleString()} กม.</div>
+          ${sub ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px">${sub}</div>` : ""}
+        </div>` : ""}
+        <div class="info-cell" style="grid-column:1/-1">
           <div class="info-label">🏢 จุดหมาย</div>
-          <div class="info-value" style="color:${COLORS.dest}">${r.destination || "-"}</div>
+          <div class="info-value" style="color:${COLORS.dest}">${destLabel(r) || "-"}</div>
         </div>
       </div>
       ${r.purpose ? `<div class="purpose-tag"><span>📝</span><span>${r.purpose}</span></div>` : ""}
@@ -584,26 +614,48 @@ function renderList(filtered, container) {
 
 function renderSummary(filtered, container) {
   const totalFuel = filtered.reduce((s, r) => s + (parseFloat(r.fuelLiters) || 0), 0);
-  const totalDist = filtered.reduce((s, r) => {
-    const sk = parseFloat(r.startKm), ek = parseFloat(r.endKm);
-    return s + (sk && ek ? ek - sk : 0);
-  }, 0);
-  // ระยะกลับบ้าน = ไมล์กลับถึงบ้าน − ไมล์สิ้นสุดงาน (นับเฉพาะรายการที่กรอกครบและไม่ติดลบ)
-  const totalReturn = filtered.reduce((s, r) => {
-    const ek = parseFloat(r.endKm), hk = parseFloat(r.homeKm);
-    return s + (ek && hk && hk >= ek ? hk - ek : 0);
-  }, 0);
-  const returnCount = filtered.filter(r => parseFloat(r.endKm) && parseFloat(r.homeKm) >= parseFloat(r.endKm)).length;
+  const calcs = filtered.map(tripCalc);
+  const totalDist = calcs.reduce((s, c) => s + (c.total || 0), 0);
+  const totalGo = calcs.reduce((s, c) => s + (c.go || 0), 0);
+  const totalBack = calcs.reduce((s, c) => s + (c.back || 0), 0);
   const allEnd = filtered.map(r => parseFloat(r.endKm)).filter(Boolean);
   const maxKm = allEnd.length ? Math.max(...allEnd) : 0;
   const allStart = filtered.map(r => parseFloat(r.startKm)).filter(Boolean);
   const minKm = allStart.length ? Math.min(...allStart) : 0;
 
-  const tripRows = filtered.map(r => {
-    const d = new Date(r.date);
-    return `<div class="trip-row">
-      <span style="color:#94a3b8">${d.getDate()}/${selMonth+1} — ${r.destination || "ไม่ระบุ"}</span>
-      <span style="color:#7dd3fc">${r.endKm ? Number(r.endKm).toLocaleString() + " กม." : "-"}${parseFloat(r.endKm) && parseFloat(r.homeKm) >= parseFloat(r.endKm) ? ` <span style="color:#fdba74">+${(parseFloat(r.homeKm) - parseFloat(r.endKm)).toLocaleString()} 🏠</span>` : ""}</span>
+  // สรุปรายวัน: รวมทุกเที่ยวที่มีวันที่เดียวกัน
+  const dayMap = {};
+  filtered.forEach((r, i) => {
+    const c = calcs[i];
+    const d = dayMap[r.date] || (dayMap[r.date] = { trips: 0, total: 0, go: 0, back: 0, fuel: 0, dests: new Set() });
+    d.trips++; d.total += c.total || 0; d.go += c.go || 0; d.back += c.back || 0;
+    d.fuel += parseFloat(r.fuelLiters) || 0;
+    destList(r).forEach(x => d.dests.add(x));
+  });
+  const dayRows = Object.keys(dayMap).sort().map(date => {
+    const x = dayMap[date], dt = new Date(date);
+    return `<div class="trip-row" style="align-items:flex-start;gap:10px">
+      <div>
+        <div style="color:#e2e8f0;font-weight:600">${dt.getDate()} ${MONTHS[dt.getMonth()].slice(0,3)}</div>
+        <div style="color:#94a3b8;font-size:11px">${x.trips} เที่ยว${x.fuel ? ` • ⛽ ${x.fuel.toFixed(2)} ล.` : ""}</div>
+        ${x.dests.size ? `<div style="color:#7dd3fc;font-size:11px;margin-top:2px">${[...x.dests].join(", ")}</div>` : ""}
+      </div>
+      <div style="text-align:right;white-space:nowrap">
+        <div style="color:#a5f3fc;font-weight:700">${x.total ? x.total.toLocaleString() + " กม." : "-"}</div>
+        ${(x.go || x.back) ? `<div style="color:#94a3b8;font-size:11px">ไป ${x.go.toLocaleString()} • กลับ ${x.back.toLocaleString()}</div>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+
+  // นับจำนวนครั้งตามจุดหมาย (ติ๊กได้หลายข้อ จึงนับแยกแต่ละจุด)
+  const tagCounts = DEST_OPTIONS.map(t => [t, filtered.filter(r => Array.isArray(r.destTags) && r.destTags.includes(t)).length]);
+  const destRows = tagCounts.map(([t, n]) => `<div class="trip-row"><span style="color:#94a3b8">${t}</span><span style="color:#7dd3fc">${n} ครั้ง</span></div>`).join("");
+
+  const tripRows = filtered.map((r, i) => {
+    const d = new Date(r.date), c = calcs[i];
+    return `<div class="trip-row" style="gap:10px">
+      <span style="color:#94a3b8">${d.getDate()}/${selMonth+1} — ${destLabel(r) || "ไม่ระบุ"}</span>
+      <span style="color:#7dd3fc;white-space:nowrap">${c.total !== null ? c.total.toLocaleString() + " กม." : "-"}</span>
     </div>`;
   }).join("");
 
@@ -613,10 +665,17 @@ function renderSummary(filtered, container) {
     ${sumCard("⛽","น้ำมันรวม",`${totalFuel.toFixed(2)} ลิตร`,"#fde68a")}
     ${sumCard("🚦","ไมล์เริ่มงาน (ต่ำสุด)",minKm ? `${minKm.toLocaleString()} กม.` : "-","#34d399")}
     ${sumCard("🏁","ไมล์สิ้นสุด (สูงสุด)",maxKm ? `${maxKm.toLocaleString()} กม.` : "-","#86efac")}
-    ${sumCard("🛣️","ระยะทางรวมทั้งเดือน (ไป)",totalDist ? `${totalDist.toLocaleString()} กม.` : "-","#f9a8d4")}
-    ${sumCard("🏠","ระยะกลับบ้านรวมทั้งเดือน",totalReturn ? `${totalReturn.toLocaleString()} กม. (${returnCount} ครั้ง)` : "-","#fdba74")}
-    ${sumCard("🧭","ระยะทางรวมไป-กลับ",(totalDist || totalReturn) ? `${(totalDist + totalReturn).toLocaleString()} กม.` : "-","#a5f3fc")}
+    ${sumCard("🛣️","ระยะทางรวมทั้งเดือน (เริ่มงาน → กลับบ้าน)",totalDist ? `${totalDist.toLocaleString()} กม.` : "-","#f9a8d4")}
+    ${sumCard("🔀","แยกเป็น ไป / กลับ",(totalGo || totalBack) ? `ไป ${totalGo.toLocaleString()} • กลับ ${totalBack.toLocaleString()} กม.` : "-","#fdba74")}
     ${filtered.length ? `<div class="trip-list">
+      <div class="trip-header">📅 สรุปรายวัน</div>
+      ${dayRows}
+    </div>
+    <div class="trip-list">
+      <div class="trip-header">📍 สรุปตามจุดหมาย</div>
+      ${destRows}
+    </div>
+    <div class="trip-list">
       <div class="trip-header">📊 สรุปการเดินทาง</div>
       ${tripRows}
     </div>` : ""}
@@ -645,8 +704,8 @@ function openAdd() {
   document.getElementById("fKm").value = "";
   document.getElementById("fHomeKm").value = "";
   document.getElementById("fDest").value = "";
+  setDestTags([]);
   document.getElementById("fPurpose").value = "";
-  updateHomeHint();
 
   // auto-fill ไมล์เริ่มงาน จาก endKm ล่าสุด
   const lastKm = getLastEndKm();
@@ -679,6 +738,8 @@ function openEdit(id) {
   document.getElementById("fHomeKm").value = r.homeKm || "";
   updateHomeHint();
   document.getElementById("fDest").value = r.destination || "";
+  setDestTags(r.destTags);
+  updateHomeHint();
   document.getElementById("fPurpose").value = r.purpose || "";
 
   // แก้ไขไม่ต้อง auto-fill
@@ -688,14 +749,22 @@ function openEdit(id) {
   document.getElementById("formModal").style.display = "flex";
 }
 
+function getDestTags() { return [...document.querySelectorAll("#fDestTags input:checked")].map(i => i.value); }
+function setDestTags(arr) { arr = Array.isArray(arr) ? arr : []; document.querySelectorAll("#fDestTags input").forEach(i => { i.checked = arr.includes(i.value); }); }
+
 function updateHomeHint() {
+  const st = parseFloat(document.getElementById("fStartKm").value);
   const e = parseFloat(document.getElementById("fKm").value);
   const h = parseFloat(document.getElementById("fHomeKm").value);
   const el = document.getElementById("homeKmHint");
-  if (e && h && h >= e) { el.textContent = `✦ ระยะกลับบ้าน ${(h - e).toLocaleString()} กม.`; el.style.display = "block"; }
-  else if (e && h && h < e) { el.textContent = "⚠️ ไมล์กลับบ้านน้อยกว่าไมล์สิ้นสุดงาน"; el.style.display = "block"; }
+  const parts = [];
+  if (e && h && h < e) { el.textContent = "⚠️ ไมล์กลับบ้านน้อยกว่าไมล์สิ้นสุดงาน"; el.style.display = "block"; return; }
+  if (e && h) parts.push(`ระยะกลับ ${(h - e).toLocaleString()} กม.`);
+  if (st && h && h >= st) parts.push(`รวมทั้งเที่ยว ${(h - st).toLocaleString()} กม.`);
+  if (parts.length) { el.textContent = "✦ " + parts.join(" • "); el.style.display = "block"; }
   else el.style.display = "none";
 }
+document.getElementById("fStartKm").addEventListener("input", updateHomeHint);
 document.getElementById("fKm").addEventListener("input", updateHomeHint);
 document.getElementById("fHomeKm").addEventListener("input", updateHomeHint);
 
@@ -716,6 +785,7 @@ function saveRecord() {
     endKm: document.getElementById("fKm").value,
     homeKm: document.getElementById("fHomeKm").value,
     destination: document.getElementById("fDest").value,
+    destTags: getDestTags(),
     purpose: document.getElementById("fPurpose").value,
   };
   const id = editId || (Math.random().toString(36).slice(2) + Date.now());
