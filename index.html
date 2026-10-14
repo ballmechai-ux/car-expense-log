@@ -262,6 +262,11 @@
       <input class="form-input" type="number" min="0" placeholder="เช่น 120500" id="fKm">
     </div>
     <div class="form-group">
+      <label class="form-label">🏠 ไมล์ตอนกลับถึงบ้าน (กม.)</label>
+      <input class="form-input" type="number" min="0" placeholder="เช่น 120540" id="fHomeKm">
+      <div class="autofill-hint" id="homeKmHint" style="display:none"></div>
+    </div>
+    <div class="form-group">
       <label class="form-label">🏢 จุดหมายปลายทาง</label>
       <input class="form-input" type="text" placeholder="เช่น สำนักงานเขต, โรงพยาบาล..." id="fDest">
     </div>
@@ -499,9 +504,9 @@ selYearEl.addEventListener("change", () => { selYear = +selYearEl.value; render(
 function getLastEndKm() {
   // หา endKm ล่าสุดจากทุก record เรียงตามวันที่
   const sorted = [...records]
-    .filter(r => r.endKm)
+    .filter(r => r.endKm || r.homeKm)
     .sort((a, b) => new Date(b.date) - new Date(a.date));
-  return sorted.length ? sorted[0].endKm : null;
+  return sorted.length ? (sorted[0].homeKm || sorted[0].endKm) : null;
 }
 
 function getFiltered() {
@@ -562,6 +567,11 @@ function renderList(filtered, container) {
           <div class="info-label">🛣️ ระยะทาง</div>
           <div class="info-value" style="color:${COLORS.dist}">${dist.toLocaleString()} กม.</div>
         </div>` : ""}
+        ${r.homeKm ? `<div class="info-cell">
+          <div class="info-label">🏠 กลับถึงบ้าน</div>
+          <div class="info-value" style="color:#fdba74">${Number(r.homeKm).toLocaleString()} กม.</div>
+          ${parseFloat(r.endKm) && parseFloat(r.homeKm) >= parseFloat(r.endKm) ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px">ระยะกลับ ${(parseFloat(r.homeKm) - parseFloat(r.endKm)).toLocaleString()} กม.</div>` : ""}
+        </div>` : ""}
         <div class="info-cell">
           <div class="info-label">🏢 จุดหมาย</div>
           <div class="info-value" style="color:${COLORS.dest}">${r.destination || "-"}</div>
@@ -578,6 +588,12 @@ function renderSummary(filtered, container) {
     const sk = parseFloat(r.startKm), ek = parseFloat(r.endKm);
     return s + (sk && ek ? ek - sk : 0);
   }, 0);
+  // ระยะกลับบ้าน = ไมล์กลับถึงบ้าน − ไมล์สิ้นสุดงาน (นับเฉพาะรายการที่กรอกครบและไม่ติดลบ)
+  const totalReturn = filtered.reduce((s, r) => {
+    const ek = parseFloat(r.endKm), hk = parseFloat(r.homeKm);
+    return s + (ek && hk && hk >= ek ? hk - ek : 0);
+  }, 0);
+  const returnCount = filtered.filter(r => parseFloat(r.endKm) && parseFloat(r.homeKm) >= parseFloat(r.endKm)).length;
   const allEnd = filtered.map(r => parseFloat(r.endKm)).filter(Boolean);
   const maxKm = allEnd.length ? Math.max(...allEnd) : 0;
   const allStart = filtered.map(r => parseFloat(r.startKm)).filter(Boolean);
@@ -587,7 +603,7 @@ function renderSummary(filtered, container) {
     const d = new Date(r.date);
     return `<div class="trip-row">
       <span style="color:#94a3b8">${d.getDate()}/${selMonth+1} — ${r.destination || "ไม่ระบุ"}</span>
-      <span style="color:#7dd3fc">${r.endKm ? Number(r.endKm).toLocaleString() + " กม." : "-"}</span>
+      <span style="color:#7dd3fc">${r.endKm ? Number(r.endKm).toLocaleString() + " กม." : "-"}${parseFloat(r.endKm) && parseFloat(r.homeKm) >= parseFloat(r.endKm) ? ` <span style="color:#fdba74">+${(parseFloat(r.homeKm) - parseFloat(r.endKm)).toLocaleString()} 🏠</span>` : ""}</span>
     </div>`;
   }).join("");
 
@@ -597,7 +613,9 @@ function renderSummary(filtered, container) {
     ${sumCard("⛽","น้ำมันรวม",`${totalFuel.toFixed(2)} ลิตร`,"#fde68a")}
     ${sumCard("🚦","ไมล์เริ่มงาน (ต่ำสุด)",minKm ? `${minKm.toLocaleString()} กม.` : "-","#34d399")}
     ${sumCard("🏁","ไมล์สิ้นสุด (สูงสุด)",maxKm ? `${maxKm.toLocaleString()} กม.` : "-","#86efac")}
-    ${sumCard("🛣️","ระยะทางรวมทั้งเดือน",totalDist ? `${totalDist.toLocaleString()} กม.` : "-","#f9a8d4")}
+    ${sumCard("🛣️","ระยะทางรวมทั้งเดือน (ไป)",totalDist ? `${totalDist.toLocaleString()} กม.` : "-","#f9a8d4")}
+    ${sumCard("🏠","ระยะกลับบ้านรวมทั้งเดือน",totalReturn ? `${totalReturn.toLocaleString()} กม. (${returnCount} ครั้ง)` : "-","#fdba74")}
+    ${sumCard("🧭","ระยะทางรวมไป-กลับ",(totalDist || totalReturn) ? `${(totalDist + totalReturn).toLocaleString()} กม.` : "-","#a5f3fc")}
     ${filtered.length ? `<div class="trip-list">
       <div class="trip-header">📊 สรุปการเดินทาง</div>
       ${tripRows}
@@ -625,8 +643,10 @@ function openAdd() {
   document.getElementById("fFuel").value = "";
   document.getElementById("fFuelKm").value = "";
   document.getElementById("fKm").value = "";
+  document.getElementById("fHomeKm").value = "";
   document.getElementById("fDest").value = "";
   document.getElementById("fPurpose").value = "";
+  updateHomeHint();
 
   // auto-fill ไมล์เริ่มงาน จาก endKm ล่าสุด
   const lastKm = getLastEndKm();
@@ -656,6 +676,8 @@ function openEdit(id) {
   document.getElementById("fFuelKm").value = r.fuelKm || "";
   document.getElementById("fStartKm").value = r.startKm || "";
   document.getElementById("fKm").value = r.endKm || "";
+  document.getElementById("fHomeKm").value = r.homeKm || "";
+  updateHomeHint();
   document.getElementById("fDest").value = r.destination || "";
   document.getElementById("fPurpose").value = r.purpose || "";
 
@@ -665,6 +687,17 @@ function openEdit(id) {
 
   document.getElementById("formModal").style.display = "flex";
 }
+
+function updateHomeHint() {
+  const e = parseFloat(document.getElementById("fKm").value);
+  const h = parseFloat(document.getElementById("fHomeKm").value);
+  const el = document.getElementById("homeKmHint");
+  if (e && h && h >= e) { el.textContent = `✦ ระยะกลับบ้าน ${(h - e).toLocaleString()} กม.`; el.style.display = "block"; }
+  else if (e && h && h < e) { el.textContent = "⚠️ ไมล์กลับบ้านน้อยกว่าไมล์สิ้นสุดงาน"; el.style.display = "block"; }
+  else el.style.display = "none";
+}
+document.getElementById("fKm").addEventListener("input", updateHomeHint);
+document.getElementById("fHomeKm").addEventListener("input", updateHomeHint);
 
 function closeForm() { document.getElementById("formModal").style.display = "none"; }
 
@@ -681,6 +714,7 @@ function saveRecord() {
     fuelKm: document.getElementById("fFuelKm").value,
     startKm: document.getElementById("fStartKm").value,
     endKm: document.getElementById("fKm").value,
+    homeKm: document.getElementById("fHomeKm").value,
     destination: document.getElementById("fDest").value,
     purpose: document.getElementById("fPurpose").value,
   };
