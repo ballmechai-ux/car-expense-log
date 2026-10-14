@@ -330,6 +330,21 @@
   <button class="lock-owner" onclick="doLogin()">เจ้าของ? เข้าสู่ระบบด้วย Google</button>
 </div>
 
+<!-- PIN required to clear data -->
+<div class="confirm-overlay" id="pinAskModal" style="display:none" onclick="if(event.target===this)closePinAsk()">
+  <div class="confirm-box">
+    <div class="confirm-icon">🔐</div>
+    <div class="confirm-title">ใส่รหัส PIN เพื่อล้างข้อมูล</div>
+    <input class="form-input" type="password" inputmode="numeric" maxlength="6" id="pinAskInput" placeholder="PIN 4–6 หลัก"
+      style="text-align:center;letter-spacing:6px;margin:12px 0 4px" onkeydown="if(event.key==='Enter')pinAskSubmit()">
+    <div class="lock-sub" id="pinAskMsg"></div>
+    <div class="clear-btns">
+      <button class="btn-clear-all" onclick="pinAskSubmit()">ยืนยัน</button>
+      <button class="btn-cancel" onclick="closePinAsk()">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
 <!-- Clear Data Confirm -->
 <div class="confirm-overlay" id="clearModal" style="display:none" onclick="if(event.target===this)closeClear()">
   <div class="confirm-box">
@@ -804,7 +819,7 @@ function confirmDelete() {
   closeConfirm();
 }
 
-function openClear() {
+function openClearModal() {
   const m = getFiltered().length;
   const a = records.length;
   const bm = document.getElementById("btnClearMonth");
@@ -814,6 +829,36 @@ function openClear() {
   bm.disabled = m === 0;
   ba.disabled = a === 0;
   document.getElementById("clearModal").style.display = "flex";
+}
+let askFails = 0, askLockedUntil = 0;
+function openClear() {
+  if (!pinHash) {
+    alert("ต้องตั้ง PIN ก่อน จึงจะล้างข้อมูลได้\nกดปุ่ม 🔑 เพื่อตั้ง PIN แล้วลองกดล้างข้อมูลอีกครั้ง");
+    setPin();
+    return;
+  }
+  const i = document.getElementById("pinAskInput");
+  i.value = "";
+  document.getElementById("pinAskMsg").textContent = "";
+  document.getElementById("pinAskModal").style.display = "flex";
+  setTimeout(() => i.focus(), 50);
+}
+function closePinAsk() { document.getElementById("pinAskModal").style.display = "none"; }
+async function pinAskSubmit() {
+  const msg = document.getElementById("pinAskMsg");
+  const v = document.getElementById("pinAskInput").value;
+  if (Date.now() < askLockedUntil) { msg.className = "lock-sub err"; msg.textContent = "ใส่ผิดหลายครั้ง รอ 30 วินาที"; return; }
+  if (!/^\d{4,6}$/.test(v)) { msg.className = "lock-sub err"; msg.textContent = "PIN ต้องเป็นตัวเลข 4–6 หลัก"; return; }
+  let current = pinHash;
+  try { const d = await PIN_DOC.get(); current = d.exists ? (d.data().hash || null) : null; pinHash = current; } catch (e) {}
+  if (current && (await sha(v)) === current) {
+    askFails = 0; closePinAsk(); openClearModal(); return;
+  }
+  askFails++;
+  document.getElementById("pinAskInput").value = "";
+  if (askFails >= 5) { askFails = 0; askLockedUntil = Date.now() + 30000; msg.textContent = "ใส่ผิดหลายครั้ง รอ 30 วินาที"; }
+  else msg.textContent = "PIN ไม่ถูกต้อง";
+  msg.className = "lock-sub err";
 }
 function closeClear() { document.getElementById("clearModal").style.display = "none"; }
 function clearMonth() {
