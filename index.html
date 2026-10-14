@@ -209,6 +209,9 @@
     background: #0f172a; color: #cbd5e1; font-size: 13px; cursor: pointer; user-select: none; }
   .chk-chip input:checked + span { background: #0369a1; border-color: #38bdf8; color: #fff; font-weight: 700; }
   .chk-chip input:checked + span::before { content: "✓ "; }
+
+  .form-warn { background: #451a03; border: 1px solid #f59e0b66; color: #fcd34d; border-radius: 12px;
+    padding: 10px 12px; font-size: 12px; line-height: 1.6; margin-bottom: 10px; display: none; }
 </style>
 </head>
 <body>
@@ -298,6 +301,7 @@
         <option>อื่นๆ</option>
       </select>
     </div>
+    <div class="form-warn" id="formWarn"></div>
     <button class="btn-save" onclick="saveRecord()" id="btnSave">✅ บันทึกรายการ</button>
   </div>
 </div>
@@ -737,6 +741,7 @@ function openAdd() {
   }
 
   document.getElementById("formModal").style.display = "flex";
+  updateWarn();
 }
 
 function openEdit(id) {
@@ -762,10 +767,39 @@ function openEdit(id) {
   document.getElementById("startKmHint").style.display = "none";
 
   document.getElementById("formModal").style.display = "flex";
+  updateWarn();
 }
 
 function getDestTags() { return [...document.querySelectorAll("#fDestTags input:checked")].map(i => i.value); }
 function setDestTags(arr) { arr = Array.isArray(arr) ? arr : []; document.querySelectorAll("#fDestTags input").forEach(i => { i.checked = arr.includes(i.value); }); }
+
+// ตรวจเลขไมล์ที่กรอก: ถ้าน้อยกว่าที่ควรจะเป็น ให้เตือน
+function mileageWarnings() {
+  const v = id => parseFloat(document.getElementById(id).value);
+  const date = document.getElementById("fDate").value;
+  const st = v("fStartKm"), e = v("fKm"), h = v("fHomeKm"), f = v("fFuelKm");
+  const fmt = n => n.toLocaleString();
+  const w = [];
+  // ไมล์ล่าสุดก่อนหน้า (จากรายการอื่นที่วันที่ไม่หลังรายการนี้)
+  let prev = 0;
+  records.forEach(r => {
+    if (r.id === editId || !date || r.date > date) return;
+    const m = parseFloat(r.homeKm) || parseFloat(r.endKm) || 0;
+    if (m > prev) prev = m;
+  });
+  if (st && prev && st < prev) w.push(`ไมล์เริ่มงาน (${fmt(st)}) น้อยกว่าไมล์ล่าสุดก่อนหน้า (${fmt(prev)})`);
+  if (st && e && e < st) w.push(`ไมล์สิ้นสุดงาน (${fmt(e)}) น้อยกว่าไมล์เริ่มงาน (${fmt(st)})`);
+  if (e && h && h < e) w.push(`ไมล์กลับถึงบ้าน (${fmt(h)}) น้อยกว่าไมล์สิ้นสุดงาน (${fmt(e)})`);
+  else if (!e && st && h && h < st) w.push(`ไมล์กลับถึงบ้าน (${fmt(h)}) น้อยกว่าไมล์เริ่มงาน (${fmt(st)})`);
+  if (f && prev && f < prev) w.push(`ไมล์ตอนเติมน้ำมัน (${fmt(f)}) น้อยกว่าไมล์ล่าสุดก่อนหน้า (${fmt(prev)})`);
+  return w;
+}
+function updateWarn() {
+  const w = mileageWarnings(), el = document.getElementById("formWarn");
+  el.innerHTML = w.map(x => "⚠️ " + x).join("<br>");
+  el.style.display = w.length ? "block" : "none";
+}
+["fDate", "fStartKm", "fKm", "fHomeKm", "fFuelKm"].forEach(id => document.getElementById(id).addEventListener("input", updateWarn));
 
 function updateHomeHint() {
   const st = parseFloat(document.getElementById("fStartKm").value);
@@ -773,7 +807,7 @@ function updateHomeHint() {
   const h = parseFloat(document.getElementById("fHomeKm").value);
   const el = document.getElementById("homeKmHint");
   const parts = [];
-  if (e && h && h < e) { el.textContent = "⚠️ ไมล์กลับบ้านน้อยกว่าไมล์สิ้นสุดงาน"; el.style.display = "block"; return; }
+  if (e && h && h < e) { el.style.display = "none"; return; }
   if (e && h) parts.push(`ระยะกลับ ${(h - e).toLocaleString()} กม.`);
   if (st && h && h >= st) parts.push(`รวมทั้งเที่ยว ${(h - st).toLocaleString()} กม.`);
   if (parts.length) { el.textContent = "✦ " + parts.join(" • "); el.style.display = "block"; }
@@ -792,6 +826,8 @@ function handleOverlayClick(e, id) {
 function saveRecord() {
   const date = document.getElementById("fDate").value;
   if (!date) return alert("กรุณาเลือกวันที่");
+  const warns = mileageWarnings();
+  if (warns.length && !confirm("ตรวจพบเลขที่อาจผิดปกติ:\n\n• " + warns.join("\n• ") + "\n\nบันทึกต่อไปหรือไม่?")) return;
   const rec = {
     date,
     fuelLiters: document.getElementById("fFuel").value,
