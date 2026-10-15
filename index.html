@@ -224,6 +224,26 @@
   }
   input[type="date"].form-input::-webkit-date-and-time-value { text-align: left; min-height: 1.4em; }
   input[type="date"].form-input::-webkit-calendar-picker-indicator { filter: invert(.8); cursor: pointer; }
+
+  .dest-head.tap { cursor: pointer; }
+  .dest-head .arr { font-style: normal; color: #7dd3fc; display: inline-block; width: 14px; }
+  .dest-days { margin: 2px 0 8px 14px; padding: 6px 12px; background: #0f172a; border-radius: 10px; font-size: 12px; }
+  .dest-day { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; color: #cbd5e1; }
+  .dest-day + .dest-day { border-top: 1px solid #1e293b; }
+  .dest-hint { font-size: 11px; color: #64748b; margin: -4px 0 6px; }
+
+  .mon-card { background: #1e293b; border: 1px solid #1e40af44; border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; cursor: pointer; }
+  .mon-card.empty { opacity: .45; cursor: default; padding: 10px 14px; }
+  .mon-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .mon-name { font-weight: 700; color: #e2e8f0; font-size: 14px; }
+  .mon-dist { font-weight: 700; color: #a5f3fc; font-size: 14px; white-space: nowrap; }
+  .mon-bar { height: 5px; background: #0f172a; border-radius: 3px; margin: 8px 0; overflow: hidden; }
+  .mon-bar i { display: block; height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8); border-radius: 3px; }
+  .mon-meta { font-size: 11px; color: #94a3b8; }
+  .mon-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .mon-tags span { font-size: 11px; padding: 3px 9px; border-radius: 999px; background: #0f172a; color: #64748b; }
+  .mon-tags span.has { color: #7dd3fc; background: #0c2a43; }
+  .mon-hint { font-size: 11px; color: #64748b; margin: 0 2px 8px; }
 </style>
 </head>
 <body>
@@ -249,6 +269,7 @@
   <div class="tabs">
     <button class="tab active" onclick="setView('list')" id="tabList">📋 รายการ</button>
     <button class="tab" onclick="setView('summary')" id="tabSummary">📊 สรุป</button>
+    <button class="tab" onclick="setView('year')" id="tabYear">📆 ทั้งปี</button>
   </div>
 </div>
 
@@ -568,6 +589,9 @@ function setView(v) {
   currentView = v;
   document.getElementById("tabList").className = "tab" + (v === "list" ? " active" : "");
   document.getElementById("tabSummary").className = "tab" + (v === "summary" ? " active" : "");
+  document.getElementById("tabYear").className = "tab" + (v === "year" ? " active" : "");
+  selMonthEl.disabled = v === "year";          // มุมมองทั้งปีไม่ใช้ตัวเลือกเดือน
+  selMonthEl.style.opacity = v === "year" ? ".4" : "1";
   render();
 }
 
@@ -575,6 +599,7 @@ function render() {
   const filtered = getFiltered();
   const content = document.getElementById("content");
   if (currentView === "list") renderList(filtered, content);
+  else if (currentView === "year") renderYear(content);
   else renderSummary(filtered, content);
 }
 
@@ -679,9 +704,23 @@ function renderSummary(filtered, container) {
     </div>`;
   }).join("");
 
-  // นับจำนวนครั้งตามจุดหมาย (ติ๊กได้หลายข้อ จึงนับแยกแต่ละจุด)
-  const tagCounts = DEST_OPTIONS.map(t => [t, filtered.filter(r => Array.isArray(r.destTags) && r.destTags.includes(t)).length]);
-  const destRows = tagCounts.map(([t, n]) => `<div class="trip-row"><span style="color:#94a3b8">${t}</span><span style="color:#7dd3fc">${n} ครั้ง</span></div>`).join("");
+  // สรุปตามจุดหมาย: ติ๊กได้หลายข้อ จึงนับแยกแต่ละจุด แตะเพื่อดูว่าวันไหนบ้าง
+  const destRows = DEST_OPTIONS.map(t => {
+    const hits = filtered.map((r, i) => [r, i])
+      .filter(([r]) => Array.isArray(r.destTags) && r.destTags.includes(t))
+      .sort((x, y) => (x[0].date > y[0].date ? 1 : x[0].date < y[0].date ? -1 : 0));
+    const n = hits.length;
+    const items = hits.map(([r, i]) => {
+      const d = new Date(r.date), c = calcs[i];
+      return `<div class="dest-day"><span>${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)} ${d.getFullYear()+543}</span><span style="color:#7dd3fc;white-space:nowrap">${c.total !== null ? c.total.toLocaleString() + " กม." : "-"}</span></div>`;
+    }).join("");
+    return `<div class="dest-item">
+      <div class="trip-row dest-head${n ? " tap" : ""}"${n ? ` onclick="toggleDest(this)"` : ""}>
+        <span style="color:#94a3b8">${n ? '<i class="arr">▸</i>' : ""}${t}</span><span style="color:#7dd3fc">${n} ครั้ง</span>
+      </div>
+      ${n ? `<div class="dest-days" style="display:none">${items}</div>` : ""}
+    </div>`;
+  }).join("");
 
   const tripRows = filtered.map((r, i) => {
     const d = new Date(r.date), c = calcs[i];
@@ -705,6 +744,7 @@ function renderSummary(filtered, container) {
     </div>
     <div class="trip-list">
       <div class="trip-header">📍 สรุปตามจุดหมาย</div>
+      <div class="dest-hint">แตะที่จุดหมายเพื่อดูว่าไปวันไหนบ้าง</div>
       ${destRows}
     </div>
     <div class="trip-list">
@@ -712,6 +752,60 @@ function renderSummary(filtered, container) {
       ${tripRows}
     </div>` : ""}
   `;
+}
+
+function goMonth(m) {
+  selMonth = m; selMonthEl.value = m;
+  setView("summary");
+  window.scrollTo(0, 0);
+}
+
+function renderYear(container) {
+  const months = Array.from({ length: 12 }, () => ({
+    trips: 0, dist: 0, fuel: 0, tags: Object.fromEntries(DEST_OPTIONS.map(t => [t, 0]))
+  }));
+  records.forEach(r => {
+    const d = new Date(r.date);
+    if (d.getFullYear() !== selYear) return;
+    const m = months[d.getMonth()], c = tripCalc(r);
+    m.trips++; m.dist += c.total || 0; m.fuel += parseFloat(r.fuelLiters) || 0;
+    (Array.isArray(r.destTags) ? r.destTags : []).forEach(t => { if (t in m.tags) m.tags[t]++; });
+  });
+  const tot = months.reduce((a, m) => {
+    a.trips += m.trips; a.dist += m.dist; a.fuel += m.fuel;
+    DEST_OPTIONS.forEach(t => { a.tags[t] += m.tags[t]; });
+    return a;
+  }, { trips: 0, dist: 0, fuel: 0, tags: Object.fromEntries(DEST_OPTIONS.map(t => [t, 0])) });
+  const maxDist = Math.max(1, ...months.map(m => m.dist));
+
+  const totalCard = `<div class="trip-list">
+    <div class="trip-header">📆 รวมทั้งปี ${selYear + 543}</div>
+    <div class="trip-row"><span style="color:#94a3b8">🛣️ ระยะทางรวม</span><span style="color:#f9a8d4;font-weight:700">${tot.dist ? tot.dist.toLocaleString() + " กม." : "-"}</span></div>
+    <div class="trip-row"><span style="color:#94a3b8">⛽ น้ำมันรวม</span><span style="color:#fde68a;font-weight:700">${tot.fuel.toFixed(2)} ลิตร</span></div>
+    <div class="trip-row"><span style="color:#94a3b8">📋 จำนวนเที่ยว</span><span style="color:#86efac;font-weight:700">${tot.trips} เที่ยว</span></div>
+    ${DEST_OPTIONS.map(t => `<div class="trip-row"><span style="color:#94a3b8">📍 ${t}</span><span style="color:#7dd3fc">${tot.tags[t]} ครั้ง</span></div>`).join("")}
+  </div>`;
+
+  const monthCards = months.map((m, i) => {
+    if (!m.trips) return `<div class="mon-card empty"><div class="mon-top"><span class="mon-name">${MONTHS[i]}</span><span class="mon-meta">ไม่มีรายการ</span></div></div>`;
+    return `<div class="mon-card" onclick="goMonth(${i})">
+      <div class="mon-top"><span class="mon-name">${MONTHS[i]}</span><span class="mon-dist">${m.dist ? m.dist.toLocaleString() + " กม." : "-"}</span></div>
+      <div class="mon-bar"><i style="width:${Math.round(m.dist / maxDist * 100)}%"></i></div>
+      <div class="mon-meta">${m.trips} เที่ยว • ⛽ ${m.fuel.toFixed(2)} ลิตร</div>
+      <div class="mon-tags">${DEST_OPTIONS.map(t => `<span class="${m.tags[t] ? "has" : ""}">${t} ${m.tags[t]}</span>`).join("")}</div>
+    </div>`;
+  }).join("");
+
+  container.innerHTML = totalCard + `<div class="mon-hint">แตะที่เดือนเพื่อดูสรุปของเดือนนั้น</div>` + monthCards;
+}
+
+function toggleDest(head) {
+  const box = head.nextElementSibling;
+  if (!box) return;
+  const open = box.style.display === "none";
+  box.style.display = open ? "block" : "none";
+  const arr = head.querySelector(".arr");
+  if (arr) arr.textContent = open ? "▾" : "▸";
 }
 
 function sumCard(icon, label, value, color) {
