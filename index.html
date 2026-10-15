@@ -105,12 +105,13 @@
 
   .overlay {
     position: fixed; inset: 0; background: #00000099;
-    display: flex; align-items: flex-end; z-index: 100;
+    display: flex; align-items: flex-start; z-index: 100;
+    overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
   }
   .modal {
     background: #0f172a; border-radius: 20px 20px 0 0;
     padding: 24px 20px 40px; width: 100%; max-width: 430px;
-    margin: 0 auto; border: 1px solid #1e40af44;
+    margin: auto auto 0; border: 1px solid #1e40af44; flex-shrink: 0;
     animation: slideUp 0.3s ease;
   }
   @keyframes slideUp { from { transform: translateY(100%) } to { transform: translateY(0) } }
