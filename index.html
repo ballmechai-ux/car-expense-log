@@ -212,6 +212,17 @@
 
   .form-warn { background: #451a03; border: 1px solid #f59e0b66; color: #fcd34d; border-radius: 12px;
     padding: 10px 12px; font-size: 12px; line-height: 1.6; margin-bottom: 10px; display: none; }
+
+  .form-group.locked { opacity: .4; pointer-events: none; }
+  .btn-save:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ช่องวันที่ให้สูงและกว้างเท่าช่องอื่น (Android/iOS วาดช่อง date ไม่เหมือน text) */
+  input[type="date"].form-input {
+    -webkit-appearance: none; appearance: none; display: block;
+    min-height: 46px; line-height: 1.4; text-align: left;
+  }
+  input[type="date"].form-input::-webkit-date-and-time-value { text-align: left; min-height: 1.4em; }
+  input[type="date"].form-input::-webkit-calendar-picker-indicator { filter: invert(.8); cursor: pointer; }
 </style>
 </head>
 <body>
@@ -254,6 +265,7 @@
     <div class="form-group">
       <label class="form-label">📅 วันที่</label>
       <input class="form-input" type="date" id="fDate">
+      <div class="autofill-hint" id="dateHint" style="display:none;color:#fbbf24;font-size:12px">👆 เลือกวันที่ก่อน จึงจะกรอกข้อมูลได้</div>
     </div>
     <div class="form-group">
       <label class="form-label">⛽ เติมน้ำมัน (ลิตร)</label>
@@ -716,8 +728,7 @@ function openAdd() {
   document.getElementById("modalTitle").textContent = "➕ เพิ่มรายการใหม่";
   document.getElementById("btnSave").textContent = "✅ บันทึกรายการ";
 
-  const d = new Date(selYear, selMonth, 1);
-  document.getElementById("fDate").value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`;
+  document.getElementById("fDate").value = "";
   document.getElementById("fFuel").value = "";
   document.getElementById("fFuelKm").value = "";
   document.getElementById("fKm").value = "";
@@ -726,21 +737,15 @@ function openAdd() {
   setDestTags([]);
   document.getElementById("fPurpose").value = "";
 
-  // auto-fill ไมล์เริ่มงาน จาก endKm ล่าสุด
-  const lastKm = getLastEndKm();
-  const startKmInput = document.getElementById("fStartKm");
-  const hint = document.getElementById("startKmHint");
-  if (lastKm) {
-    startKmInput.value = lastKm;
-    startKmInput.classList.add("autofilled");
-    hint.style.display = "block";
-  } else {
-    startKmInput.value = "";
-    startKmInput.classList.remove("autofilled");
-    hint.style.display = "none";
-  }
+  // ยังไม่เลือกวันที่ -> ล็อกช่องอื่นทั้งหมด (ไมล์เริ่มงานจะเติมให้อัตโนมัติหลังเลือกวันที่)
+  document.getElementById("fStartKm").value = "";
+  document.getElementById("fStartKm").classList.remove("autofilled");
+  document.getElementById("startKmHint").style.display = "none";
+  setFormLocked(true);
 
   document.getElementById("formModal").style.display = "flex";
+  document.getElementById("formModal").scrollTop = 0;
+  const _m = document.querySelector("#formModal .modal"); if (_m) _m.scrollTop = 0;
   updateWarn();
 }
 
@@ -765,13 +770,59 @@ function openEdit(id) {
   // แก้ไขไม่ต้อง auto-fill
   document.getElementById("fStartKm").classList.remove("autofilled");
   document.getElementById("startKmHint").style.display = "none";
+  setFormLocked(false);
 
   document.getElementById("formModal").style.display = "flex";
+  document.getElementById("formModal").scrollTop = 0;
+  const _m = document.querySelector("#formModal .modal"); if (_m) _m.scrollTop = 0;
   updateWarn();
 }
 
 function getDestTags() { return [...document.querySelectorAll("#fDestTags input:checked")].map(i => i.value); }
 function setDestTags(arr) { arr = Array.isArray(arr) ? arr : []; document.querySelectorAll("#fDestTags input").forEach(i => { i.checked = arr.includes(i.value); }); }
+
+// ไมล์ล่าสุดก่อนหน้า (จากรายการอื่นที่วันที่ไม่หลังวันที่ที่ระบุ) — ใช้ไมล์กลับบ้าน ถ้าไม่มีใช้ไมล์สิ้นสุดงาน
+function prevMileage(date) {
+  let prev = 0;
+  records.forEach(r => {
+    if (r.id === editId || !date || r.date > date) return;
+    const m = parseFloat(r.homeKm) || parseFloat(r.endKm) || 0;
+    if (m > prev) prev = m;
+  });
+  return prev;
+}
+
+// ล็อกฟอร์มเพิ่มรายการใหม่ จนกว่าจะเลือกวันที่ (โหมดแก้ไขไม่ล็อก)
+function setFormLocked(locked) {
+  document.querySelectorAll("#formModal .form-group").forEach(g => {
+    if (!g.querySelector("#fDate")) g.classList.toggle("locked", locked);
+  });
+  document.querySelectorAll("#formModal input, #formModal textarea, #formModal select").forEach(el => {
+    if (el.id !== "fDate") el.disabled = locked;
+  });
+  document.getElementById("btnSave").disabled = locked;
+  document.getElementById("dateHint").style.display = locked ? "block" : "none";
+}
+function onDateChosen() {
+  const date = document.getElementById("fDate").value;
+  if (editId) { updateWarn(); return; }
+  setFormLocked(!date);
+  if (date) {
+    const inp = document.getElementById("fStartKm"), hint = document.getElementById("startKmHint");
+    if (!inp.value || inp.classList.contains("autofilled")) {
+      const prev = prevMileage(date);
+      if (prev) { inp.value = prev; inp.classList.add("autofilled"); hint.style.display = "block"; }
+      else { inp.value = ""; inp.classList.remove("autofilled"); hint.style.display = "none"; }
+    }
+  }
+  updateWarn();
+}
+document.getElementById("fDate").addEventListener("input", onDateChosen);
+document.getElementById("fDate").addEventListener("change", onDateChosen);
+document.getElementById("fStartKm").addEventListener("input", e => {
+  e.target.classList.remove("autofilled");
+  document.getElementById("startKmHint").style.display = "none";
+});
 
 // ตรวจเลขไมล์ที่กรอก: ถ้าน้อยกว่าที่ควรจะเป็น ให้เตือน
 function mileageWarnings() {
@@ -780,13 +831,7 @@ function mileageWarnings() {
   const st = v("fStartKm"), e = v("fKm"), h = v("fHomeKm"), f = v("fFuelKm");
   const fmt = n => n.toLocaleString();
   const w = [];
-  // ไมล์ล่าสุดก่อนหน้า (จากรายการอื่นที่วันที่ไม่หลังรายการนี้)
-  let prev = 0;
-  records.forEach(r => {
-    if (r.id === editId || !date || r.date > date) return;
-    const m = parseFloat(r.homeKm) || parseFloat(r.endKm) || 0;
-    if (m > prev) prev = m;
-  });
+  const prev = prevMileage(date);
   if (st && prev && st < prev) w.push(`ไมล์เริ่มงาน (${fmt(st)}) น้อยกว่าไมล์ล่าสุดก่อนหน้า (${fmt(prev)})`);
   if (st && e && e < st) w.push(`ไมล์สิ้นสุดงาน (${fmt(e)}) น้อยกว่าไมล์เริ่มงาน (${fmt(st)})`);
   if (e && h && h < e) w.push(`ไมล์กลับถึงบ้าน (${fmt(h)}) น้อยกว่าไมล์สิ้นสุดงาน (${fmt(e)})`);
